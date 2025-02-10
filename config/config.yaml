@@ -1,0 +1,27 @@
+
+ingestion:
+  max_threads: 5            # Number of concurrent API requests
+  retry_attempts: 3         # Number of retries on failure
+  retry_delay: 2            # Initial retry delay in seconds (exponential backoff applied)
+
+# REST API Configuration
+rest_api:
+  base_url: "https://jsonplaceholder.typicode.com"
+  headers:
+    Content-Type: "application/json"
+  endpoints:
+    - "posts"
+    - "comments"
+    - "albums"
+
+# Storage Configuration
+storage:
+  type: "LOCAL"          
+  format: "JSON"         
+  local_path: "data/api_responses" 
+
+
+# Logging Configuration
+logging:
+  level: "INFO"           
+  log_file: "logs/ingestion.log" 
