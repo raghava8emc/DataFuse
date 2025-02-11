@@ -4,6 +4,7 @@ env/
 dip/
 .venv/
 .pyenv/
+.vscode/
 .virtualenvs/
 pip-wheel-metadata/
 __pycache__/
