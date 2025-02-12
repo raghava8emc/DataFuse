@@ -1,36 +1,29 @@
 import requests
-import time
 from sources.base_connector import BaseConnector
+from parsers.content_parser import ContentParser
 from config.logger_config import get_logger
 
 logger = get_logger(__name__)
 
 class RestAPIConnector(BaseConnector):
-    def __init__(self, base_url, headers, endpoints, retry_attempts=3, retry_delay=2):
+    def __init__(self, base_url, headers, endpoints):
         super().__init__("REST API")
         self.base_url = base_url
         self.headers = headers
         self.endpoints = endpoints
-        self.retry_attempts = retry_attempts
-        self.retry_delay = retry_delay
-    
+
+    def fetch_endpoint(self, endpoint):
+        """Fetches a single endpoint's data (Runs synchronously)."""
+        url = f"{self.base_url}/{endpoint}"
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "").split(";")[0]
+            return endpoint, ContentParser.parse_response(response.text, content_type)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching {url}: {e}")
+            return endpoint, None
+
     def fetch_data(self):
-        results = {}
-        for endpoint in self.endpoints:
-            url = f"{self.base_url}/{endpoint}"
-            attempts = 0
-            while attempts < self.retry_attempts:
-                try:
-                    response = requests.get(url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-                    logger.info(f"Successfully fetched data from {url}")
-                    results[endpoint] = response.json()
-                    break  # Exit retry loop on success
-                except requests.exceptions.RequestException as e:
-                    logger.error(f"Error fetching {url}: {e}. Retrying in {self.retry_delay} seconds...")
-                    time.sleep(self.retry_delay * (2 ** attempts))  # Exponential backoff
-                    attempts += 1
-            if attempts == self.retry_attempts:
-                logger.error(f"Failed to fetch {url} after {self.retry_attempts} attempts.")
-                results[endpoint] = None
-        return results
+        """Fetches all endpoints sequentially (single-threaded)."""
+        return {endpoint: self.fetch_endpoint(endpoint)[1] for endpoint in self.endpoints}

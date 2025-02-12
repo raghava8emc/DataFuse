@@ -9,4 +9,5 @@ class StorageType(Enum):
 class FormatType(Enum):
     JSON = auto()
     CSV = auto()
+    XML = auto()
     PARQUET = auto()
