@@ -8,6 +8,7 @@ from formatters.xml_formatter import XMLFormatter
 from storage.enums import FormatType, StorageType
 from output.local_output import LocalOutput
 from output.mysql_output import MySQLOutput
+from output.postgres_output import PostgreSQLOutput
 from utils.logging_utils import logger
 
 class Orchestrator:
@@ -36,6 +37,8 @@ class Orchestrator:
             return LocalOutput(self.output_config)
         elif self.storage_type == StorageType.MYSQL:
             return MySQLOutput(self.output_config)
+        elif self.storage_type == StorageType.POSTGRESQL:
+            return PostgreSQLOutput(self.output_config)
         else:
             raise ValueError("Unsupported storage type")
 
@@ -63,6 +66,9 @@ class Orchestrator:
         if self.storage_type == StorageType.MYSQL:
             mysql_output = MySQLOutput(self.output_config)  
             mysql_output.save(content, source, endpoint)
+        if self.storage_type == StorageType.POSTGRESQL:
+            postgres_output = PostgreSQLOutput(self.output_config)  
+            postgres_output.save(content, source, endpoint)
         else:
             self.output_handler.save(content, f"{source}.{self.format_type.name.lower()}", self.format_type.name)
         logger.info(f"Successfully saved data for {source}.")

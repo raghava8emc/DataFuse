@@ -5,15 +5,13 @@ from sqlalchemy.orm import sessionmaker
 from typing import Dict, List, Any
 from sqlalchemy import Text
 
-Base = declarative_base()
-
-class MySQLOutput:
-    """Handles storing ingested data into dynamically created MySQL tables using SQLAlchemy."""
+class PostgreSQLOutput:
+    """Handles storing ingested data into dynamically created PostgreSQL tables using SQLAlchemy."""
     
     def __init__(self, db_config: Dict):
         self.db_config = db_config
         self.table_names = db_config.get("table_names", {})
-        logger.info(f"Connecting to MySQL database: {db_config['database']} at {db_config['host']}:{db_config['port']}")
+        logger.info(f"Connecting to PostgreSQL database: {db_config['database']} at {db_config['host']}:{db_config['port']}")
 
         self._ensure_database_exists()
         self.metadata = MetaData()
@@ -22,16 +20,16 @@ class MySQLOutput:
     def _ensure_database_exists(self):
         """Checks if the database exists; if not, creates it."""
         temp_engine = create_engine(
-            f"mysql+mysqlconnector://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/"
+            f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres"
         )
         connection = temp_engine.connect()
 
-        existing_databases = connection.execute(text("SHOW DATABASES;")).fetchall()
+        existing_databases = connection.execute(text("SELECT datname FROM pg_database;")).fetchall()
         database_names = [db[0] for db in existing_databases]
 
         if self.db_config["database"] not in database_names:
             logger.info(f"Database '{self.db_config['database']}' does not exist. Creating it...")
-            connection.execute(text(f"CREATE DATABASE {self.db_config['database']};"))
+            connection.execute(text(f"CREATE DATABASE {self.db_config['database']}"))
             logger.info(f"Database '{self.db_config['database']}' created successfully.")
 
         connection.close()
@@ -40,10 +38,11 @@ class MySQLOutput:
     def _get_engine(self):
         """Creates and returns a new SQLAlchemy engine."""
         return create_engine(
-            f"mysql+mysqlconnector://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}"
+            f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}"
         )
-    
+
     def _infer_column_types(self, sample_record):
+        """Infers column types from a sample record dynamically."""
         columns = []
         for key, value in sample_record.items():
             column_name = key  # Keep original case for column names
@@ -57,11 +56,9 @@ class MySQLOutput:
             elif isinstance(value, (list, dict)):
                 columns.append(Column(column_name, JSON))
             else:
-                columns.append(Column(column_name, Text))  # Fallback to Text()
+                columns.append(Column(column_name, Text))  # Fallback to Text
 
         return columns
-
-
 
     def _get_or_create_table(self, endpoint: str, sample_record: Dict):
         """Creates a table dynamically with column names matching JSON exactly."""
@@ -83,15 +80,14 @@ class MySQLOutput:
         )
 
         engine = self._get_engine()
-        self.metadata.create_all(engine)  # Create table in MySQL
+        self.metadata.create_all(engine)
         self.tables[table_name] = table
         logger.info(f"Table `{table_name}` created successfully with columns: {[col.name for col in table.columns]}")
 
         return table
 
-
     def save(self, data: List[Dict], source_name: str, endpoint: str):
-        """Efficiently inserts data into MySQL tables using bulk insert."""
+        """Efficiently inserts data into PostgreSQL tables using bulk insert."""
 
         if not data:
             logger.warning(f"No data to insert for `{endpoint}`. Skipping.")
@@ -110,9 +106,9 @@ class MySQLOutput:
         # Ensure table exists
         table = self._get_or_create_table(endpoint, sample_record)
 
-        
+        # Get valid columns from the table
         valid_columns = {col.name for col in table.columns}
-        
+
         # Remove columns that don’t exist in the table
         filtered_data = [{key: value for key, value in record.items() if key in valid_columns} for record in data]
 
@@ -120,7 +116,6 @@ class MySQLOutput:
         logger.info(f"Data keys being inserted: {filtered_data[0].keys() if filtered_data else 'No data'}")
 
         try:
-            # Use `session.execute()` for Table objects instead of `bulk_insert_mappings`
             session.execute(table.insert(), filtered_data)
             session.commit()
 
@@ -131,10 +126,3 @@ class MySQLOutput:
             raise e
         finally:
             session.close()
-
-
-
-
-
-
-
