@@ -2,9 +2,7 @@ from enum import Enum, auto
 
 class StorageType(Enum):
     LOCAL = auto()
-    CLOUD = auto()
-    DATABASE = auto()
-    QUEUE = auto()
+    MYSQL = auto()
 
 class FormatType(Enum):
     JSON = auto()

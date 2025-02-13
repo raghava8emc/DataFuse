@@ -26,4 +26,6 @@ __pycache__/
 # Ignore data folder
 data/
 logs/
+testfiles/
+test.py
 

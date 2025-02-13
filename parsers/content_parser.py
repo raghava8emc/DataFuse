@@ -2,6 +2,7 @@ import json
 import csv
 import xml.etree.ElementTree as ET
 from typing import Union, List, Dict
+from utils.logging_utils import logger
 
 class ContentParser:
     """Handles different API response content types (JSON, CSV, XML)."""
@@ -51,10 +52,14 @@ class ContentParser:
             response = response.decode("utf-8")  # Decode bytes before processing
         
         if content_type == "application/json":
+            logger.info("Parsing JSON format...")
             return ContentParser.parse_json(response)
         elif content_type in ("text/csv", "application/csv"):
+            logger.info("Parsing CSV format... ")
             return ContentParser.parse_csv(response)
         elif content_type in ("application/xml", "text/xml"):
+            logger.info("Parsing XML format... ")
             return ContentParser.parse_xml(response)
         else:
+            logger.error(f"Unsupported content type: {content_type}")
             raise ValueError(f"Unsupported content type: {content_type}")
