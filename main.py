@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from api.routes import router as api_router
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 def create_app():
@@ -9,6 +10,13 @@ def create_app():
         version="1.0.0"
     )
     app.include_router(api_router)
+    app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows requests from any origin
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
     return app
 
 app = create_app()

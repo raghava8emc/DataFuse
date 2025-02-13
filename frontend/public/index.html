@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingestion Configuration</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Data Ingestion Setup</h2>
+
+        <form id="ingestForm">
+            <!-- Step 1: Select Source Type -->
+            <label for="sourceType">Select Source Type:</label>
+            <select id="sourceType">
+                <option value="restapi">REST API</option>
+            </select>
+            <button type="button" id="nextToUrl">Next</button>
+
+            <div id="step2" class="hidden">
+                <!-- Step 2: API Details -->
+                <label for="baseUrl">Base URL:</label>
+                <input type="text" id="baseUrl" placeholder="https://example.com">
+
+                <label for="endpoints">Endpoints (comma separated):</label>
+                <input type="text" id="endpoints" placeholder="posts,comments,albums">
+
+                <label for="contentType">Content Type:</label>
+                <select id="contentType">
+                    <option value="application/json">JSON</option>
+                    <option value="text/xml">XML</option>
+                    <option value="application/x-ndjson">NDJSON</option>
+                    <option value="application/octet-stream">Binary</option>
+                    <option value="multipart/form-data">File Uploads</option>
+                </select>
+
+                <button type="button" id="nextToStorage">Next</button>
+            </div>
+
+            <div id="step3" class="hidden">
+                <!-- Step 3: Storage Type -->
+                <label for="storageType">Select Storage Type:</label>
+                <select id="storageType">
+                    <option value="local">Local</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mongodb">MongoDB</option>
+                </select>
+
+                <button type="button" id="nextToConfig">Next</button>
+            </div>
+
+            <div id="storageConfig" class="hidden">
+                <!-- Step 4: Configuration based on selection -->
+                <div id="localConfig" class="hidden">
+                    <label for="formatType">Select Format Type:</label>
+                    <select id="formatType">
+                        <option value="json">JSON</option>
+                        <option value="csv">CSV</option>
+                    </select>
+
+                    <label for="outputPath">Output Path:</label>
+                    <input type="text" id="outputPath" placeholder="/path/to/store">
+                </div>
+
+                <div id="dbConfig" class="hidden">
+                    <label for="dbHost">Host:</label>
+                    <input type="text" id="dbHost" placeholder="localhost">
+                    
+                    <label for="dbPort">Port:</label>
+                    <input type="text" id="dbPort" placeholder="5432">
+
+                    <label for="dbUser">Username:</label>
+                    <input type="text" id="dbUser" placeholder="root">
+
+                    <label for="dbPassword">Password:</label>
+                    <input type="password" id="dbPassword" placeholder="password">
+
+                    <label for="dbName">Database Name:</label>
+                    <input type="text" id="dbName" placeholder="ingestion_db">
+                </div>
+
+                <button type="submit" id="submitBtn" class="hidden">Submit</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -27,5 +27,6 @@ __pycache__/
 data/
 logs/
 testfiles/
+frontend/node_modules
 test.py
 

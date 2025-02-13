@@ -19,20 +19,20 @@ class PostgreSQLOutput:
 
     def _ensure_database_exists(self):
         """Checks if the database exists; if not, creates it."""
+        
         temp_engine = create_engine(
-            f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres"
+            f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres",
+            isolation_level="AUTOCOMMIT"  
         )
-        connection = temp_engine.connect()
+        with temp_engine.connect() as connection:
+            existing_databases = connection.execute(text("SELECT datname FROM pg_database;")).fetchall()
+            database_names = [db[0] for db in existing_databases]
 
-        existing_databases = connection.execute(text("SELECT datname FROM pg_database;")).fetchall()
-        database_names = [db[0] for db in existing_databases]
+            if self.db_config["database"] not in database_names:
+                logger.info(f"Database '{self.db_config['database']}' does not exist. Creating it...")
+                connection.execute(text(f"CREATE DATABASE {self.db_config['database']}"))
+                logger.info(f"Database '{self.db_config['database']}' created successfully.")
 
-        if self.db_config["database"] not in database_names:
-            logger.info(f"Database '{self.db_config['database']}' does not exist. Creating it...")
-            connection.execute(text(f"CREATE DATABASE {self.db_config['database']}"))
-            logger.info(f"Database '{self.db_config['database']}' created successfully.")
-
-        connection.close()
         temp_engine.dispose()
 
     def _get_engine(self):
