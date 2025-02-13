@@ -4,6 +4,7 @@ class StorageType(Enum):
     LOCAL = auto()
     MYSQL = auto()
     POSTGRESQL = auto()
+    MONGODB = auto()
 
 class FormatType(Enum):
     JSON = auto()
