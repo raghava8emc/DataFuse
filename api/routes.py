@@ -5,6 +5,9 @@ from storage.enums import StorageType, FormatType
 from pydantic import BaseModel
 from typing import Dict, Union, Optional
 from utils.logging_utils import logger
+from utils.logging_utils import request_logger
+
+
 
 router = APIRouter()
 
@@ -21,7 +24,7 @@ def ingest_data(request: IngestionRequest):
     """Trigger ingestion dynamically based on user input."""
 
     logger.info(f"Received request for ingestion with source: {request.source_type}")
-
+    request_logger.info(f"REQUEST BODY  : {request}")
     # Convert storage_type & format_type to ENUM if they are strings
     try:
         if isinstance(request.storage_type, str):
@@ -48,8 +51,6 @@ def ingest_data(request: IngestionRequest):
     if not source:
         logger.error(f"Unsupported source type: {request.source_type}")
         raise HTTPException(status_code=400, detail="Unsupported source type provided.")
-    
-    print(request)
 
     # Initialize Orchestrator
     orchestrator = Orchestrator(
@@ -63,6 +64,7 @@ def ingest_data(request: IngestionRequest):
     # Start Data Ingestion
     logger.info("Starting ingestion process...")
     orchestrator.start_ingestion()
-    logger.info("Ingestion completed successfully!")
+    request_logger.info("Ingestion completed successfully!")
+    logger.info("Ingestion completed successfully!\n")
 
     return {"message": "Ingestion completed successfully!", "storage_type": request.storage_type.name}

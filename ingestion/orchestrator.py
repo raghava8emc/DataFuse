@@ -11,6 +11,7 @@ from output.mysql_output import MySQLOutput
 from output.postgres_output import PostgreSQLOutput
 from output.mongodb_output import MongoDBOutput
 from utils.logging_utils import logger
+import concurrent.futures
 
 class Orchestrator:
     def __init__(self, connectors, storage_type, format_type, output_config, encoding="utf-8", validation_schemas=None):
@@ -81,7 +82,27 @@ class Orchestrator:
 
     @log_execution_time
     def start_ingestion(self):
-        """Runs ingestion using multiprocessing."""
-        with Pool(processes=os.cpu_count() - 1) as pool:
-            ingestion_tasks = [(source, content, source) for connector in self.connectors for source, content in connector.fetch_data().items()]
-            pool.starmap(self.process_data, ingestion_tasks)
+        """Runs ingestion using multithreading (I/O-bound)."""
+        logger.info("Starting ingestion process with multithreading...")
+
+        ingestion_tasks = [
+            (source, content, source) 
+            for connector in self.connectors 
+            for source, content in connector.fetch_data().items()
+        ]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()-1) as executor:
+            future_to_task = {
+                executor.submit(self.process_data, source, content, source): source 
+                for source, content, source in ingestion_tasks
+            }
+
+            for future in concurrent.futures.as_completed(future_to_task):
+                source = future_to_task[future]
+                try:
+                    future.result()  # Process each data item
+                    logger.info(f"Finished processing data for `{source}` successfully.")
+                except Exception as e:
+                    logger.error(f"Error processing data for `{source}`: {e}")
+
+        logger.info("Ingestion process completed!")
