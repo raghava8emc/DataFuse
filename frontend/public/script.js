@@ -1,14 +1,22 @@
-document.getElementById("nextToUrl").addEventListener("click", function() {
-    document.getElementById("step2").classList.remove("hidden");
-});
+document.getElementById("nextToConfig").addEventListener("click", function() {
+    let sourceType = document.getElementById("sourceType").value;
 
-document.getElementById("nextToStorage").addEventListener("click", function() {
+    // Show respective configuration based on selection
+    document.getElementById("restApiConfig").classList.add("hidden");
+    document.getElementById("sftpConfig").classList.add("hidden");
+
+    if (sourceType === "restapi") {
+        document.getElementById("restApiConfig").classList.remove("hidden");
+    } else if (sourceType === "sftp") {
+        document.getElementById("sftpConfig").classList.remove("hidden");
+    }
+
     document.getElementById("step3").classList.remove("hidden");
 });
 
-document.getElementById("nextToConfig").addEventListener("click", function() {
+document.getElementById("nextToOutput").addEventListener("click", function() {
     let storageType = document.getElementById("storageType").value;
-    document.getElementById("storageConfig").classList.remove("hidden");
+    document.getElementById("outputConfig").classList.remove("hidden");
 
     if (storageType === "local") {
         document.getElementById("localConfig").classList.remove("hidden");
@@ -18,67 +26,46 @@ document.getElementById("nextToConfig").addEventListener("click", function() {
         document.getElementById("dbConfig").classList.remove("hidden");
     }
 
-    checkSubmitVisibility();
+    document.getElementById("submitBtn").classList.remove("hidden");
 });
-
-document.getElementById("ingestForm").addEventListener("input", checkSubmitVisibility);
-
-function checkSubmitVisibility() {
-    let storageType = document.getElementById("storageType").value;
-    let submitBtn = document.getElementById("submitBtn");
-
-    if (storageType === "local") {
-        let formatSelected = document.getElementById("formatType").value;
-        let pathFilled = document.getElementById("outputPath").value.trim() !== "";
-        
-        submitBtn.classList.toggle("hidden", !(formatSelected && pathFilled));
-    } else {
-        let requiredFields = ["dbHost", "dbPort", "dbUser", "dbPassword", "dbName"];
-        let allFilled = requiredFields.every(id => document.getElementById(id).value.trim() !== "");
-        
-        submitBtn.classList.toggle("hidden", !allFilled);
-    }
-}
 
 document.getElementById("ingestForm").addEventListener("submit", async function(event) {
     event.preventDefault();
 
     const sourceType = document.getElementById("sourceType").value;
-    const baseUrl = document.getElementById("baseUrl").value;
-    const endpoints = document.getElementById("endpoints").value.split(",").map(e => e.trim());
-    const contentType = document.getElementById("contentType").value;
-    const storageType = document.getElementById("storageType").value;
+    let requestData = { source_type: sourceType, config: {}, storage_type: "", format_type: "", output_config: {} };
 
-    let requestData = {
-        source_type: sourceType,
-        config: {
-            base_url: baseUrl,
-            headers: {
-                "Content-Type": contentType
-            },
-            endpoints: endpoints
-        },
-        storage_type: storageType.toUpperCase(),
-        format_type: "JSON",
-        output_config: {},
-        validation_schema: {}
-    };
+    if (sourceType === "restapi") {
+        requestData.config = {
+            base_url: document.getElementById("baseUrl").value,
+            headers: { "Content-Type": document.getElementById("contentType").value },
+            endpoints: document.getElementById("endpoints").value.split(",").map(e => e.trim())
+        };
+    } else if (sourceType === "sftp") {
+        requestData.config = {
+            host: document.getElementById("sftpHost").value,
+            port: parseInt(document.getElementById("sftpPort").value),
+            username: document.getElementById("sftpUsername").value,
+            password: document.getElementById("sftpPassword").value,
+            remote_path: document.getElementById("remotePath").value,
+            file_patterns: Array.from(document.getElementById("filePatterns").selectedOptions).map(opt => opt.value)
+        };
+    }
 
-    if (storageType === "local") {
-        requestData.format_type = document.getElementById("formatType").value;
-        requestData.output_config["output_path"] = document.getElementById("outputPath").value;
+    requestData.storage_type = document.getElementById("storageType").value.toUpperCase();
+
+    if (requestData.storage_type === "LOCAL") {
+        requestData.format_type = document.getElementById("formatType").value.toUpperCase();
+        requestData.output_config.output_path = document.getElementById("outputPath").value;
     } else {
+        requestData.format_type = "JSON";  // Databases only support JSON for now
         requestData.output_config = {
             host: document.getElementById("dbHost").value,
             port: parseInt(document.getElementById("dbPort").value),
             username: document.getElementById("dbUser").value,
             password: document.getElementById("dbPassword").value,
-            database: document.getElementById("dbName").value,
-            table_names: {}
+            database: document.getElementById("dbName").value
         };
-        endpoints.forEach(endpoint => {
-            requestData.output_config.table_names[endpoint] = `${endpoint}_data`;
-        });
     }
 
     console.log("Sending request:", requestData);

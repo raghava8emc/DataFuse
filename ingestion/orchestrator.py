@@ -1,5 +1,7 @@
 import os
-from multiprocessing import Pool
+import shutil
+import json
+import concurrent.futures
 from utils.timing_utils import log_execution_time
 from validation.schema_validator import SchemaValidator
 from formatters.json_formatter import JSONFormatter
@@ -11,16 +13,20 @@ from output.mysql_output import MySQLOutput
 from output.postgres_output import PostgreSQLOutput
 from output.mongodb_output import MongoDBOutput
 from utils.logging_utils import logger
-import concurrent.futures
+import csv
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
 class Orchestrator:
-    def __init__(self, connectors, storage_type, format_type, output_config, encoding="utf-8", validation_schemas=None):
+    def __init__(self, connectors, storage_type, format_type, output_config, temp_dir, encoding="utf-8",  validation_schemas=None):
         self.connectors = connectors
         self.storage_type = storage_type
         self.format_type = format_type
         self.output_config = output_config
         self.encoding = encoding
         self.validation_schemas = validation_schemas or {}
+        self.temp_dir = temp_dir
+        self.downloaded_files = []
         self.output_handler = self.get_output_handler()
         self.formatter = self.get_formatter()
 
@@ -46,63 +52,97 @@ class Orchestrator:
         else:
             raise ValueError("Unsupported storage type")
 
-    def process_data(self, source, content, endpoint):
-        """Validates, formats, and saves data."""
-        schema = self.validation_schemas.get(source, None)
-        logger.info("Validating data schema...")
-        if schema:
-            if self.format_type == FormatType.JSON and not SchemaValidator.validate_json(content, schema):
-                logger.error("JSON schema validation failed!")
-                return
-            if self.format_type == FormatType.CSV and not SchemaValidator.validate_csv(content, schema):
-                logger.error("CSV schema validation failed!")
-                return
-            if self.format_type == FormatType.XML and not SchemaValidator.validate_xml(content, schema):
-                logger.error("XML schema validation failed!")
-                return
-        
-        logger.info(f"Formatting data as {self.format_type.name}...")
-        #formatted_data = self.formatter.convert(content, self.encoding)
-        logger.info(f"Data formatting completed.")
 
-        logger.info("Saving data...")
-        
-        if self.storage_type == StorageType.MYSQL:
-            mysql_output = MySQLOutput(self.output_config)  
-            mysql_output.save(content, source, endpoint)
-        elif self.storage_type == StorageType.POSTGRESQL:
-            postgres_output = PostgreSQLOutput(self.output_config)  
-            postgres_output.save(content, source, endpoint)
-        elif self.storage_type == StorageType.MONGODB:
-            mongo_output = MongoDBOutput(self.output_config)  
-            mongo_output.save(content, source, endpoint)
-        else:
-            self.output_handler.save(content, f"{source}.{self.format_type.name.lower()}", self.format_type.name)
-        logger.info(f"Successfully saved data for {source}.")
+
+    def process_data(self, file_path, source, endpoint):
+        """Reads, validates, formats, and saves data from the file."""
+        file_path = Path(file_path)
+        input_format = file_path.suffix.lstrip(".").lower()
+        output_format = self.format_type.name.lower()
+        output_dir = Path(self.output_handler.output_path)
+
+        try:
+            # Case 1: If file is already in required format, move it directly
+            if file_path.suffix.lstrip(".").lower() == output_format:
+                output_file_path = output_dir / file_path.name
+                shutil.move(file_path, output_file_path)
+                logger.info(f"Moved `{file_path.name}` to `{output_file_path}` without processing (already in `{output_format}`).")
+                return
+
+            
+            if input_format == "json":
+                with file_path.open("r", encoding="utf-8") as file:
+                    content = json.load(file)  
+
+            elif input_format == "csv":
+                with file_path.open("r", encoding="utf-8") as file:
+                    reader = csv.DictReader(file)
+                    content = [row for row in reader]  
+
+            elif input_format == "xml":
+                with file_path.open("r", encoding="utf-8") as file:
+                    content = ET.parse(file).getroot()
+                    content = self._xml_to_dict(content)  
+
+            else:
+                logger.error(f"Unsupported input format `{input_format}` for `{file_path.name}`.")
+                return
+
+            
+            schema = self.validation_schemas.get(source)
+            if schema and not SchemaValidator.validate(content, schema, self.format_type):
+                logger.error(f"Schema validation failed for `{file_path.name}`.")
+                return
+
+
+            output_filename = file_path.name + f".{output_format}"
+            output_file_path = output_dir / output_filename
+
+            # Save data based on storage type
+            logger.info(f"Saving processed data for `{file_path.name}`...")
+            if self.storage_type == StorageType.MYSQL:
+                MySQLOutput(self.output_config).save(content, source, endpoint)
+            elif self.storage_type == StorageType.POSTGRESQL:
+                PostgreSQLOutput(self.output_config).save(content, source, endpoint)
+            elif self.storage_type == StorageType.MONGODB:
+                MongoDBOutput(self.output_config).save(content, source, endpoint)
+            else:
+                self.output_handler.save(content, output_filename, output_format)
+
+            logger.info(f"Successfully processed `{file_path.name}`.")
+
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON file `{file_path.name}` (invalid format).")
+        except Exception as e:
+            logger.error(f"Error processing file `{file_path.name}`: {e}")
+
+
 
     @log_execution_time
     def start_ingestion(self):
         """Runs ingestion using multithreading (I/O-bound)."""
-        logger.info("Starting ingestion process with multithreading...")
+        logger.info(f"Starting ingestion process...")
 
-        ingestion_tasks = [
-            (source, content, source) 
-            for connector in self.connectors 
-            for source, content in connector.fetch_data().items()
-        ]
+        for connector in self.connectors:
+            for source, file_path in connector.fetch_data().items():
+                if file_path:  
+                    self.downloaded_files.append((file_path, source, source))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()-1) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() - 1) as executor:
             future_to_task = {
-                executor.submit(self.process_data, source, content, source): source 
-                for source, content, source in ingestion_tasks
+                executor.submit(self.process_data, file_path, source, source): source
+                for file_path, source, source in self.downloaded_files
             }
 
             for future in concurrent.futures.as_completed(future_to_task):
                 source = future_to_task[future]
                 try:
-                    future.result()  # Process each data item
-                    logger.info(f"Finished processing data for `{source}` successfully.")
+                    future.result()
+                    logger.info(f"Finished processing `{source}` successfully.")
                 except Exception as e:
-                    logger.error(f"Error processing data for `{source}`: {e}")
+                    logger.error(f"Error processing `{source}`: {e}")
 
         logger.info("Ingestion process completed!")
+
+        shutil.rmtree(self.temp_dir)
+        logger.info(f"Temporary directory {self.temp_dir} deleted.")

@@ -58,6 +58,7 @@ def ingest_data(request: IngestionRequest):
         storage_type=request.storage_type,
         format_type=request.format_type,
         output_config=request.output_config,
+        temp_dir=source_manager.temp_dir,
         validation_schemas={request.source_type: request.validation_schema}
     )
 
