@@ -2,6 +2,8 @@ import os
 import uuid
 from sources.rest_api_connector import RestAPIConnector
 from sources.sftp_connector import SFTPConnector
+from sources.mysql_connector import MySQLConnector
+from sources.postgresql_connector import PostgreSQLConnector
 from utils.logging_utils import logger
 
 class SourceManager:
@@ -36,6 +38,39 @@ class SourceManager:
                 self.temp_dir,
                 file_patterns=config["file_patterns"],
                 protocol=source_type
+            )
+        
+        elif source_type == "mysql":
+            return MySQLConnector(
+                host=config["host"],
+                port=config["port"],
+                username=config["username"],
+                password=config["password"],
+                database=config["database"],
+                table_names=config["table_names"],
+                temp_dir=self.temp_dir
+            )
+        
+        elif source_type == "mysql":
+            return MySQLConnector(
+                host=config["host"],
+                port=config["port"],
+                username=config["username"],
+                password=config["password"],
+                database=config["database"],
+                table_names=config["table_names"],
+                temp_dir=self.temp_dir
+            )
+        
+        elif source_type == "postgresql":
+            return PostgreSQLConnector(
+                host=config["host"],
+                port=config["port"],
+                username=config["username"],
+                password=config["password"],
+                database=config["database"],
+                table_names=config["table_names"],
+                temp_dir=self.temp_dir
             )
         
         return None  

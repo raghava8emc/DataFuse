@@ -152,8 +152,7 @@ class SFTPConnector(BaseConnector):
 
         downloaded_files = {}
 
-        max_threads = min(self.max_connections, 8)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.connection_pool) as executor:
             future_to_file = {executor.submit(download_func, filename): filename for filename in file_list}
 
             with tqdm(total=len(file_list), desc="Downloading Files") as progress_bar:
