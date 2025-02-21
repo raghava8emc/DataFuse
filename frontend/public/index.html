@@ -16,6 +16,9 @@
             <select id="sourceType">
                 <option value="restapi">REST API</option>
                 <option value="sftp">SFTP</option>
+                <option value="mysql">MySQL</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mongodb">MongoDB</option>
             </select>
             <button type="button" id="nextToConfig">Next</button>
 
@@ -63,7 +66,28 @@
                 </select>
             </div>
 
-            <!-- Storage Type -->
+            <!-- Database Input Configuration -->
+            <div id="dbInputConfig" class="hidden">
+                <label for="dbInputHost">Host:</label>
+                <input type="text" id="dbInputHost" placeholder="localhost">
+
+                <label for="dbInputPort">Port:</label>
+                <input type="text" id="dbInputPort" placeholder="5432">
+
+                <label for="dbInputUser">Username:</label>
+                <input type="text" id="dbInputUser" placeholder="root">
+
+                <label for="dbInputPassword">Password:</label>
+                <input type="password" id="dbInputPassword" placeholder="password">
+
+                <label for="dbInputName">Database Name:</label>
+                <input type="text" id="dbInputName" placeholder="ingestion_db">
+
+                <label for="dbInputTables">Tables/Collections (comma-separated):</label>
+                <input type="text" id="dbInputTables" placeholder="users,orders,products">
+            </div>
+
+            <!-- Step 2: Select Storage Type -->
             <div id="step3" class="hidden">
                 <label for="storageType">Select Storage Type:</label>
                 <select id="storageType">
@@ -89,8 +113,8 @@
                     <input type="text" id="outputPath" placeholder="/path/to/store">
                 </div>
 
-                <!-- Database Configuration -->
-                <div id="dbConfig" class="hidden">
+                <!-- Database Output Configuration -->
+                <div id="dbConfigOutput" class="hidden">
                     <label for="dbHost">Host:</label>
                     <input type="text" id="dbHost" placeholder="localhost">
 

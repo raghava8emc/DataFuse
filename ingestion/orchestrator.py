@@ -59,54 +59,53 @@ class Orchestrator:
         file_path = Path(file_path)
         input_format = file_path.suffix.lstrip(".").lower()
         output_format = self.format_type.name.lower()
-        output_dir = Path(self.output_handler.output_path)
-
+        
         try:
-            # Case 1: If file is already in required format, move it directly
-            if file_path.suffix.lstrip(".").lower() == output_format:
+            # If storage type is LOCAL, define an output directory
+            output_dir = Path(self.output_handler.output_path) if self.storage_type == StorageType.LOCAL else None
+            
+            # Case 1: If file is already in required format, move it directly (LOCAL only)
+            if self.storage_type == StorageType.LOCAL and input_format == output_format:
                 output_file_path = output_dir / file_path.name
                 shutil.move(file_path, output_file_path)
                 logger.info(f"Moved `{file_path.name}` to `{output_file_path}` without processing (already in `{output_format}`).")
                 return
 
-            
+            # Read file content based on format
+            content = None
             if input_format == "json":
                 with file_path.open("r", encoding="utf-8") as file:
                     content = json.load(file)  
-
             elif input_format == "csv":
                 with file_path.open("r", encoding="utf-8") as file:
                     reader = csv.DictReader(file)
                     content = [row for row in reader]  
-
             elif input_format == "xml":
                 with file_path.open("r", encoding="utf-8") as file:
                     content = ET.parse(file).getroot()
                     content = self._xml_to_dict(content)  
-
             else:
                 logger.error(f"Unsupported input format `{input_format}` for `{file_path.name}`.")
                 return
 
-            
+            # Validate against schema
             schema = self.validation_schemas.get(source)
             if schema and not SchemaValidator.validate(content, schema, self.format_type):
                 logger.error(f"Schema validation failed for `{file_path.name}`.")
                 return
 
-
-            output_filename = file_path.name + f".{output_format}"
-            output_file_path = output_dir / output_filename
-
-            # Save data based on storage type
+            # Case 2: Save processed data
             logger.info(f"Saving processed data for `{file_path.name}`...")
+
             if self.storage_type == StorageType.MYSQL:
                 MySQLOutput(self.output_config).save(content, source, endpoint)
             elif self.storage_type == StorageType.POSTGRESQL:
                 PostgreSQLOutput(self.output_config).save(content, source, endpoint)
             elif self.storage_type == StorageType.MONGODB:
                 MongoDBOutput(self.output_config).save(content, source, endpoint)
-            else:
+            else:  # LOCAL storage only
+                output_filename = file_path.stem + f".{output_format}"
+                output_file_path = output_dir / output_filename
                 self.output_handler.save(content, output_filename, output_format)
 
             logger.info(f"Successfully processed `{file_path.name}`.")
@@ -127,6 +126,10 @@ class Orchestrator:
             for source, file_path in connector.fetch_data().items():
                 if file_path:  
                     self.downloaded_files.append((file_path, source, source))
+
+            logger.info(f"Complete Data written to temporary directory `{connector.temp_dir}` successfully.")
+
+        
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() - 1) as executor:
             future_to_task = {

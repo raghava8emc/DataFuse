@@ -4,6 +4,7 @@ from sources.rest_api_connector import RestAPIConnector
 from sources.sftp_connector import SFTPConnector
 from sources.mysql_connector import MySQLConnector
 from sources.postgresql_connector import PostgreSQLConnector
+from sources.mongodb_connector import MongoDBConnector
 from utils.logging_utils import logger
 
 class SourceManager:
@@ -70,6 +71,17 @@ class SourceManager:
                 password=config["password"],
                 database=config["database"],
                 table_names=config["table_names"],
+                temp_dir=self.temp_dir
+            )
+        
+        elif source_type == "mongodb":
+            return MongoDBConnector(
+                host=config["host"],
+                port=config["port"],
+                username=config["username"],
+                password=config["password"],
+                database=config["database"],
+                collection_names=config["collection_names"],
                 temp_dir=self.temp_dir
             )
         
