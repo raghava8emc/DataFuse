@@ -14,6 +14,19 @@ class RestAPIConnector(BaseConnector):
         self.endpoints = endpoints
         self.temp_dir = temp_dir  # Use temp_dir from SourceManager
 
+    def test_connection(self):
+        """Checks if the REST API is reachable."""
+        try:
+            response = requests.get(self.base_url, headers=self.headers, timeout=5)
+            if response.status_code == 200:
+                logger.info(f"Successfully connected to REST API `{self.base_url}`.")
+                return True
+            logger.error(f"REST API `{self.base_url}` returned status code {response.status_code}.")
+            return False
+        except requests.RequestException as e:
+            logger.error(f"Failed to connect to REST API `{self.base_url}`: {e}")
+            return False
+
     def fetch_endpoint(self, endpoint):
         """Fetches a single endpoint's data and saves it to a file."""
         url = f"{self.base_url}/{endpoint}"

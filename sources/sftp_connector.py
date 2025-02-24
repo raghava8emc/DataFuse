@@ -43,6 +43,45 @@ class SFTPConnector(BaseConnector):
         self.connection_pool = queue.Queue(self.max_connections)
         self._initialize_connection_pool()
 
+
+    def test_connection(self):
+        """Checks if the SFTP/FTP connection is valid."""
+        if self.protocol == "sftp":
+            return self._validate_sftp()
+        elif self.protocol == "ftp":
+            return self._validate_ftp()
+        return False
+
+    def _validate_sftp(self):
+        """Validates SFTP connection."""
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(self.host, port=self.port, username=self.username, password=self.password, pkey=self.private_key, timeout=5)
+            sftp = ssh.open_sftp()
+            sftp.listdir(self.remote_path)  # Check if we can access the directory
+            sftp.close()
+            ssh.close()
+            logger.info(f"Successfully connected to SFTP `{self.host}`.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to connect to SFTP `{self.host}`: {e}")
+            return False
+
+    def _validate_ftp(self):
+        """Validates FTP connection."""
+        try:
+            ftp = ftplib.FTP()
+            ftp.connect(self.host, self.port, timeout=5)
+            ftp.login(self.username, self.password)
+            ftp.cwd(self.remote_path)  # Check if we can access the directory
+            ftp.quit()
+            logger.info(f"Successfully connected to FTP `{self.host}`.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to connect to FTP `{self.host}`: {e}")
+            return False
+
     def _initialize_connection_pool(self):
         """Pre-creates SFTP/FTP connections and adds them to the connection pool."""
         for _ in range(self.max_connections):
@@ -152,7 +191,7 @@ class SFTPConnector(BaseConnector):
 
         downloaded_files = {}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.connection_pool) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_connections) as executor:
             future_to_file = {executor.submit(download_func, filename): filename for filename in file_list}
 
             with tqdm(total=len(file_list), desc="Downloading Files") as progress_bar:

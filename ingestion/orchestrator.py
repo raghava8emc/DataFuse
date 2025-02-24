@@ -18,7 +18,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 class Orchestrator:
-    def __init__(self, connectors, storage_type, format_type, output_config, temp_dir, encoding="utf-8",  validation_schemas=None):
+    def __init__(self, connectors, storage_type, format_type, output_config, temp_dir, pool_size=8, encoding="utf-8", validation_schemas=None):
         self.connectors = connectors
         self.storage_type = storage_type
         self.format_type = format_type
@@ -29,6 +29,56 @@ class Orchestrator:
         self.downloaded_files = []
         self.output_handler = self.get_output_handler()
         self.formatter = self.get_formatter()
+        self.max_connections = min(pool_size, os.cpu_count())
+
+        if not self.validate_input_sources():
+            logger.error("Input source validation failed. Stopping ingestion.")
+            raise RuntimeError("Input source validation failed.")
+
+        if not self.validate_output_source():
+            logger.error("Output storage validation failed. Stopping ingestion.")
+            raise RuntimeError("Output storage validation failed.")
+
+    def validate_input_sources(self) -> bool:
+        """
+        Validates all input sources before starting ingestion.
+        Ensures connection validity for REST API, SFTP, MySQL, PostgreSQL, and MongoDB.
+        """
+        logger.info("Validating input sources...")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_connections) as executor:
+            future_to_source = {executor.submit(connector.test_connection): connector for connector in self.connectors}
+
+            for future in concurrent.futures.as_completed(future_to_source):
+                connector = future_to_source[future]
+                try:
+                    if not future.result():
+                        logger.error(f"Input validation failed for `{connector}`.")
+                        return False  # Stop if any source fails
+                except Exception as e:
+                    logger.error(f"Exception during input validation for `{connector}`: {e}")
+                    return False
+
+        logger.info("All input sources validated successfully.")
+        return True
+
+    def validate_output_source(self) -> bool:
+        """
+        Validates the output storage before ingestion starts.
+        Ensures connection validity for MySQL, PostgreSQL, MongoDB, and Local storage.
+        """
+        logger.info("Validating output storage...")
+
+        try:
+            if not self.output_handler.test_connection():
+                logger.error(f"Output validation failed for `{self.storage_type.name}`.")
+                return False
+        except Exception as e:
+            logger.error(f"Exception during output validation for `{self.storage_type.name}`: {e}")
+            return False
+
+        logger.info(f"Output storage `{self.storage_type.name}` validated successfully.")
+        return True
 
     def get_formatter(self):
         if self.format_type == FormatType.JSON:
@@ -103,12 +153,13 @@ class Orchestrator:
                 PostgreSQLOutput(self.output_config).save(content, source, endpoint)
             elif self.storage_type == StorageType.MONGODB:
                 MongoDBOutput(self.output_config).save(content, source, endpoint)
-            else:  # LOCAL storage only
+            else:  
                 output_filename = file_path.stem + f".{output_format}"
                 output_file_path = output_dir / output_filename
                 self.output_handler.save(content, output_filename, output_format)
+                logger.info(f"Successfully processed `{file_path.name}` into `{output_file_path}`")
 
-            logger.info(f"Successfully processed `{file_path.name}`.")
+            logger.info(f"Successfully processed `{file_path.name}`")
 
         except json.JSONDecodeError:
             logger.error(f"Failed to parse JSON file `{file_path.name}` (invalid format).")
@@ -131,7 +182,7 @@ class Orchestrator:
 
         
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() - 1) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_connections) as executor:
             future_to_task = {
                 executor.submit(self.process_data, file_path, source, source): source
                 for file_path, source, source in self.downloaded_files

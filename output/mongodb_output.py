@@ -1,42 +1,68 @@
 import json
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, ServerSelectionTimeoutError, OperationFailure
 from utils.logging_utils import logger
 from typing import Dict, List
 
 
 class MongoDBOutput:
-    """Handles storing ingested data into MongoDB collections using multiprocessing."""
+    """Handles storing ingested data into MongoDB collections."""
 
     def __init__(self, db_config: Dict):
         """
         Initializes MongoDB connection and sets up the target database.
-        This ensures each process has its own connection.
         :param db_config: Dictionary containing MongoDB connection details.
         """
         self.db_config = db_config
         self.db_name = db_config.get("database", "ingestion_db")
         self.collection_names = db_config.get("collection_names", {})  # Maps endpoints to collections
 
-        logger.info(f"Initializing MongoDBOutput for database: {self.db_name}")
+        logger.info(f"Initializing MongoDBOutput for database: `{self.db_name}`.")
+
+        if not self.test_connection():
+            raise RuntimeError("MongoDB connection failed. Check credentials.")
 
     def _get_client(self):
         """
         Creates and returns a new MongoDB client.
-        Ensures each process has a separate connection.
+        Ensures each process/thread has a separate connection.
         """
         return MongoClient(
             host=self.db_config["host"],
             port=int(self.db_config["port"]),
             username=self.db_config.get("username"),
             password=self.db_config.get("password"),
-            authSource="admin" if self.db_config.get("username") else None
+            authSource="admin" if self.db_config.get("username") else None,
+            serverSelectionTimeoutMS=5000  # Timeout for connection testing
         )
+
+    def test_connection(self) -> bool:
+        """
+        Tests the connection to the MongoDB server.
+        Ensures that authentication is valid.
+        """
+        try:
+            client = self._get_client()
+            client.admin.command("ping") 
+            databases = client.list_database_names()  
+
+            if self.db_name not in databases:
+                logger.warning(f"Database `{self.db_name}` does not exist yet. It will be created automatically when data is inserted.")
+
+            logger.info("Successfully connected to MongoDB server.")
+            client.close()
+            return True
+        except ServerSelectionTimeoutError:
+            logger.error("MongoDB server is unreachable. Check if the host and port are correct.")
+        except OperationFailure as e:
+            logger.error(f"MongoDB authentication failed: {e}")
+        except PyMongoError as e:
+            logger.error(f"MongoDB connection error: {e}")
+        return False
 
     def _get_collection(self, client, endpoint: str):
         """
         Retrieves or creates a MongoDB collection dynamically.
-        Each process handles a single endpoint, so this is efficient.
         :param client: MongoDB client instance.
         :param endpoint: The API endpoint used as the collection name.
         :return: MongoDB collection object.
@@ -52,8 +78,6 @@ class MongoDBOutput:
     def save(self, data: List[Dict], source_name: str, endpoint: str):
         """
         Inserts data into MongoDB collections dynamically.
-        Each process will call this method separately for its assigned endpoint.
-        
         :param data: List of dictionaries representing the data.
         :param source_name: Name of the data source.
         :param endpoint: The API endpoint name used to determine collection name.

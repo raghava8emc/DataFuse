@@ -24,32 +24,50 @@ class MongoDBConnector:
         self.connection_pool = queue.Queue(self.max_connections)
         self._initialize_connection_pool()
 
+    def test_connection(self):
+        """Validates PostgreSQL connection and checks if the database exists."""
+        return self._validate_connection()
+
     def _validate_connection(self):
-        """Checks MongoDB connectivity and authentication."""
+        """
+        Validates the MongoDB connection:
+        1. Tests basic connectivity (ensures host, port, user, and password are correct).
+        2. Checks if the specified database exists.
+        """
         try:
+            # Step 1: Test basic connectivity
             client = MongoClient(
                 host=self.host,
                 port=self.port,
                 username=self.username,
                 password=self.password,
-                serverSelectionTimeoutMS=5000
+                serverSelectionTimeoutMS=5000  # Set timeout to 5 seconds
             )
-            db = client[self.database]
 
+            # Test if the connection is successful
+            client.admin.command("ping")
+            logger.info(f"Successfully connected to MongoDB `{self.host}:{self.port}`.")
+
+            # Step 2: Check if the database exists
             if self.database not in client.list_database_names():
-                raise RuntimeError(f"Database `{self.database}` does not exist.")
+                logger.error(f"MongoDB database `{self.database}` does not exist.")
+                return False
 
-            logger.info(f"Successfully connected to MongoDB `{self.database}`.")
+            logger.info(f"MongoDB database `{self.database}` exists and is accessible.")
             client.close()
+            return True
+
         except errors.ServerSelectionTimeoutError:
-            logger.error(f"Failed to connect to MongoDB at `{self.host}:{self.port}`.")
-            raise
+            logger.error(f"Failed to connect to MongoDB `{self.host}:{self.port}`. Check host, port, or authentication details.")
+            return False
+
         except errors.OperationFailure as e:
             logger.error(f"MongoDB authentication failed: {e}")
-            raise
+            return False
+
         except Exception as e:
-            logger.error(f"Unexpected error while connecting to MongoDB: {e}")
-            raise
+            logger.error(f"Unexpected error connecting to MongoDB `{self.host}:{self.port}`: {e}")
+            return False
 
     def _initialize_connection_pool(self):
         """Pre-creates connections for efficient querying."""

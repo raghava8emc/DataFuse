@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from typing import Dict, List, Any
 from sqlalchemy import Text
+from psycopg2 import OperationalError
 
 class PostgreSQLOutput:
     """Handles storing ingested data into dynamically created PostgreSQL tables using SQLAlchemy."""
@@ -11,35 +12,58 @@ class PostgreSQLOutput:
     def __init__(self, db_config: Dict):
         self.db_config = db_config
         self.table_names = db_config.get("table_names", {})
-        logger.info(f"Connecting to PostgreSQL database: {db_config['database']} at {db_config['host']}:{db_config['port']}")
 
+        logger.info(f"Initializing PostgreSQL output handler for database `{db_config['database']}`.")
+        if not self.test_connection():
+            raise RuntimeError("PostgreSQL connection failed. Check credentials.")
         self._ensure_database_exists()
+        self.engine = self._get_engine()
+
         self.metadata = MetaData()
         self.tables = {}
-
-    def _ensure_database_exists(self):
-        """Checks if the database exists; if not, creates it."""
-        
-        temp_engine = create_engine(
-            f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres",
-            isolation_level="AUTOCOMMIT"  
-        )
-        with temp_engine.connect() as connection:
-            existing_databases = connection.execute(text("SELECT datname FROM pg_database;")).fetchall()
-            database_names = [db[0] for db in existing_databases]
-
-            if self.db_config["database"] not in database_names:
-                logger.info(f"Database '{self.db_config['database']}' does not exist. Creating it...")
-                connection.execute(text(f"CREATE DATABASE {self.db_config['database']}"))
-                logger.info(f"Database '{self.db_config['database']}' created successfully.")
-
-        temp_engine.dispose()
 
     def _get_engine(self):
         """Creates and returns a new SQLAlchemy engine."""
         return create_engine(
             f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}"
         )
+
+    def test_connection(self):
+        """
+        Tests the connection to the PostgreSQL server without specifying a database.
+        Ensures credentials are valid.
+        """
+        try:
+            temp_engine = create_engine(
+                f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres"
+            )
+            with temp_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Successfully connected to PostgreSQL server.")
+            return True
+        except Exception as e:
+            logger.error(f"PostgreSQL connection test failed: {e}")
+            return False
+
+    def _ensure_database_exists(self):
+        """Checks if the database exists; if not, creates it."""
+        try:
+            temp_engine = create_engine(
+                f"postgresql+psycopg2://{self.db_config['username']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/postgres",
+                isolation_level="AUTOCOMMIT"  
+            )
+            with temp_engine.connect() as connection:
+                existing_databases = connection.execute(text("SELECT datname FROM pg_database;")).fetchall()
+                database_names = [db[0] for db in existing_databases]
+
+                if self.db_config["database"] not in database_names:
+                    logger.info(f"Database `{self.db_config['database']}` does not exist. Creating it...")
+                    connection.execute(text(f"CREATE DATABASE {self.db_config['database']}"))
+                    logger.info(f"Database `{self.db_config['database']}` created successfully.")
+
+        except Exception as e:
+            logger.error(f"Error ensuring database existence: {e}")
+            raise RuntimeError("Database creation failed.")
 
     def _infer_column_types(self, sample_record):
         """Infers column types from a sample record dynamically."""
@@ -65,7 +89,7 @@ class PostgreSQLOutput:
         table_name = self.table_names.get(endpoint, f"{endpoint}_data")
 
         if table_name in self.tables:
-            logger.info(f"Table {table_name} already exists.")
+            logger.info(f"Table `{table_name}` already exists.")
             return self.tables[table_name]
 
         logger.info(f"Creating table `{table_name}` with columns as received in JSON...")

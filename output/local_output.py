@@ -1,6 +1,7 @@
 import json
 import os
 import pandas as pd
+from utils.logging_utils import logger
 
 class LocalOutput:
     """Handles saving data to local storage."""
@@ -9,7 +10,33 @@ class LocalOutput:
         self.output_path = config.get("output_path", "data/")
 
         # Ensure output directory exists
-        os.makedirs(self.output_path, exist_ok=True)
+        if not self.test_connection():
+            raise RuntimeError(f"Local output directory `{self.output_path}` is not accessible or writable.")
+        
+
+    def test_connection(self) -> bool:
+        """
+        Tests whether the specified output path exists and is writable.
+        Ensures ingestion will not fail due to permission issues.
+        """
+        try:
+            # Ensure the directory exists
+            os.makedirs(self.output_path, exist_ok=True)
+
+            # Check if we can create a test file
+            test_file = os.path.join(self.output_path, ".test_write")
+            with open(test_file, "w") as file:
+                file.write("test")
+            os.remove(test_file)  # Cleanup
+
+            logger.info(f"Successfully validated local output directory: `{self.output_path}`.")
+            return True
+
+        except PermissionError:
+            logger.error(f"Permission denied: Unable to write to `{self.output_path}`.")
+        except OSError as e:
+            logger.error(f"OS error when accessing `{self.output_path}`: {e}")
+        return False
 
     def save(self, data, filename, format_type="json"):
         """Saves structured data based on format type."""
