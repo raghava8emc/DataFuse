@@ -7,8 +7,6 @@ from typing import Dict, Union, Optional
 from utils.logging_utils import logger
 from utils.logging_utils import request_logger
 
-
-
 router = APIRouter()
 
 class IngestionRequest(BaseModel):
@@ -19,53 +17,102 @@ class IngestionRequest(BaseModel):
     output_config: Dict  # Output details (DB credentials or Local path)
     validation_schema: Optional[Dict] = {}  # Default empty schema
 
+
+@router.post("/validate")
+def validate_sources(request: IngestionRequest):
+    """Validates source & output configuration before ingestion (No temp_dir, No DB connections)."""
+
+    logger.info(f"🔍 Validating `{request.source_type}` → `{request.storage_type}`...")
+    request_logger.info(f"VALIDATION REQUEST: {request}")
+
+    try:
+        # Convert storage_type & format_type to ENUM (if strings)
+        request.storage_type = StorageType[request.storage_type.upper()] if isinstance(request.storage_type, str) else request.storage_type
+        request.format_type = FormatType[request.format_type.upper()] if isinstance(request.format_type, str) else request.format_type
+
+    except KeyError as e:
+        logger.error(f"Invalid storage_type or format_type: {e}")
+        return {"message": "FAILED: Invalid storage_type or format_type provided.", "error": str(e)}
+
+    try:
+        # Get Source Connector (No temp_dir creation)
+        source_manager = SourceManager()
+        source = source_manager.get_connector(request.source_type, request.config, request.storage_type, create_temp_dir=False)
+        if not source:
+            raise ValueError(f"Unsupported source type: {request.source_type}")
+
+        # Initialize Orchestrator (No temp_dir, No DB connections)
+        orchestrator = Orchestrator(
+            connectors=[source],
+            storage_type=request.storage_type,
+            format_type=request.format_type,
+            output_config=request.output_config,
+            temp_dir=None,  # No temp_dir during validation
+            validation_schemas={request.source_type: request.validation_schema},
+            enable_db_connections=False  # Prevent DB connections during validation
+        )
+
+        # Run Validation (Input & Output)
+        if not orchestrator.validate_sources():
+            return {"message": "FAILED: Validation failed.", "validation_passed": False}
+
+        return {"message": "SUCCESS: Validation successful!", "validation_passed": True}
+
+    except ValueError as ve:
+        logger.error(f"Validation Error: {ve}")
+        return {"message": "FAILED: Validation error.", "error": str(ve)}
+
+    except Exception as e:
+        logger.error(f"🚨 Unexpected Error During Validation: {e}")
+        return {"message": "FAILED: An unexpected error occurred.", "error": str(e)}
+
+###  **Step 2: Start Ingestion (Only After Validation)**
 @router.post("/ingest")
 def ingest_data(request: IngestionRequest):
-    """Trigger ingestion dynamically based on user input."""
+    """Starts ingestion process after successful validation."""
 
-    logger.info(f"Received request for ingestion with source: {request.source_type}")
-    request_logger.info(f"REQUEST BODY  : {request}")
-    # Convert storage_type & format_type to ENUM if they are strings
+    logger.info(f"Received ingestion request: `{request.source_type}` → `{request.storage_type}`")
+    request_logger.info(f"INGESTION REQUEST: {request}")
+
     try:
-        if isinstance(request.storage_type, str):
-            request.storage_type = StorageType[request.storage_type.upper()]
-        if isinstance(request.format_type, str):
-            request.format_type = FormatType[request.format_type.upper()]
-    except KeyError:
-        logger.error("Invalid storage_type or format_type provided.")
-        raise HTTPException(status_code=400, detail="Invalid storage_type or format_type provided.")
+        # Convert storage_type & format_type to ENUM (if strings)
+        request.storage_type = StorageType[request.storage_type.upper()] if isinstance(request.storage_type, str) else request.storage_type
+        request.format_type = FormatType[request.format_type.upper()] if isinstance(request.format_type, str) else request.format_type
 
-    # Validate Local Storage format type (Should be JSON or CSV only)
-    if request.storage_type == StorageType.LOCAL and request.format_type not in {FormatType.JSON, FormatType.CSV}:
-        logger.error("Invalid format type for local storage. Must be JSON or CSV.")
-        raise HTTPException(status_code=400, detail="Invalid format type for local storage. Must be JSON or CSV.")
+    except KeyError as e:
+        logger.error(f"Invalid storage_type or format_type: {e}")
+        return {"message": "FAILED: Invalid storage_type or format_type provided.", "error": str(e)}
 
-    # Validate Database Storage (Format must be JSON)
-    if request.storage_type != StorageType.LOCAL and request.format_type != FormatType.JSON:
-        logger.error("Databases only support JSON format.")
-        raise HTTPException(status_code=400, detail="Databases only support JSON format.")
+    try:
+        # Get Source Connector (Temp dir created for ingestion)
+        source_manager = SourceManager()
+        source = source_manager.get_connector(request.source_type, request.config, request.storage_type, create_temp_dir=True)
+        if not source:
+            raise ValueError(f"Unsupported source type: {request.source_type}")
 
-    # Validate Source Connector
-    source_manager = SourceManager()
-    source = source_manager.get_connector(request.source_type, request.config)
-    if not source:
-        logger.error(f"Unsupported source type: {request.source_type}")
-        raise HTTPException(status_code=400, detail="Unsupported source type provided.")
+        # Initialize Orchestrator (Temp dir enabled for ingestion)
+        orchestrator = Orchestrator(
+            connectors=[source],
+            storage_type=request.storage_type,
+            format_type=request.format_type,
+            output_config=request.output_config,
+            temp_dir=source_manager.temp_dir,  # Temp directory only for ingestion
+            validation_schemas={request.source_type: request.validation_schema},
+            enable_db_connections=True  # Enable DB connections for ingestion
+        )
 
-    # Initialize Orchestrator
-    orchestrator = Orchestrator(
-        connectors=[source],
-        storage_type=request.storage_type,
-        format_type=request.format_type,
-        output_config=request.output_config,
-        temp_dir=source_manager.temp_dir,
-        validation_schemas={request.source_type: request.validation_schema}
-    )
+        logger.info(f"Starting Ingestion...")
 
-    # Start Data Ingestion
-    logger.info("Starting ingestion process...")
-    orchestrator.start_ingestion()
-    request_logger.info("Ingestion completed successfully!")
-    logger.info("Ingestion completed successfully!\n")
+        # Start Data Ingestion
+        orchestrator.start_ingestion()
 
-    return {"message": "Ingestion completed successfully!", "storage_type": request.storage_type.name}
+        logger.info(f"Ingestion completed successfully!")
+        return {"message": "SUCCESS: Ingestion completed successfully!"}
+
+    except ValueError as ve:
+        logger.error(f"Ingestion Error: {ve}")
+        return {"message": "FAILED: Ingestion error.", "error": str(ve)}
+
+    except Exception as e:
+        logger.error(f"🚨 Unexpected Error During Ingestion: {e}")
+        return {"message": "FAILED: An unexpected error occurred during ingestion.", "error": str(e)}

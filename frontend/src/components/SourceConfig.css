@@ -1,0 +1,56 @@
+.config-container {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    text-align: center;
+    border-left: 5px solid #007bff;
+    transition: all 0.3s ease-in-out;
+}
+
+.config-container:hover {
+    transform: scale(1.02);
+    border-left: 5px solid #0056b3;
+}
+
+.config-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.config-description {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.config-form input {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: all 0.2s ease-in-out;
+}
+
+.config-form input:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0px 0px 6px rgba(0, 123, 255, 0.5);
+}
+
+@media (max-width: 500px) {
+    .config-container {
+        max-width: 100%;
+        padding: 15px;
+    }
+}

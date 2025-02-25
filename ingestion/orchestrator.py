@@ -16,28 +16,48 @@ from utils.logging_utils import logger
 import csv
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import uuid
+
 
 class Orchestrator:
-    def __init__(self, connectors, storage_type, format_type, output_config, temp_dir, pool_size=8, encoding="utf-8", validation_schemas=None):
+    def __init__(self, connectors, storage_type, format_type, output_config, temp_dir=None, 
+                 pool_size=8, encoding="utf-8", validation_schemas=None, enable_db_connections=True):
+    
         self.connectors = connectors
         self.storage_type = storage_type
         self.format_type = format_type
         self.output_config = output_config
         self.encoding = encoding
         self.validation_schemas = validation_schemas or {}
+        self.enable_db_connections = enable_db_connections
+        self.temp_dir_created = True  # Track if we created a temp_dir
+
+        
         self.temp_dir = temp_dir
+
         self.downloaded_files = []
-        self.output_handler = self.get_output_handler()
         self.formatter = self.get_formatter()
+        
+        # Initialize output handler only if ingestion is enabled
+        self.output_handler = self.get_output_handler() if enable_db_connections else None
+
         self.max_connections = min(pool_size, os.cpu_count())
 
+    def validate_sources(self):
+        """
+        Runs validation checks for input and output sources.
+        Should be called explicitly before ingestion.
+        """
         if not self.validate_input_sources():
-            logger.error("Input source validation failed. Stopping ingestion.")
-            raise RuntimeError("Input source validation failed.")
+            logger.error("Input source validation failed.")
+            return False
 
-        if not self.validate_output_source():
-            logger.error("Output storage validation failed. Stopping ingestion.")
-            raise RuntimeError("Output storage validation failed.")
+        if self.enable_db_connections and not self.validate_output_source():
+            logger.error("Output storage validation failed.")
+            return False
+
+        logger.info("All validations passed successfully!")
+        return True
 
     def validate_input_sources(self) -> bool:
         """
@@ -89,7 +109,7 @@ class Orchestrator:
             return XMLFormatter()
         else:
             raise ValueError("Unsupported format type")
-    
+
     def get_output_handler(self):
         if self.storage_type == StorageType.LOCAL:
             return LocalOutput(self.output_config)
@@ -101,9 +121,7 @@ class Orchestrator:
             return MongoDBOutput(self.output_config)
         else:
             raise ValueError("Unsupported storage type")
-
-
-
+        
     def process_data(self, file_path, source, endpoint):
         """Reads, validates, formats, and saves data from the file."""
         file_path = Path(file_path)
@@ -167,7 +185,6 @@ class Orchestrator:
             logger.error(f"Error processing file `{file_path.name}`: {e}")
 
 
-
     @log_execution_time
     def start_ingestion(self):
         """Runs ingestion using multithreading (I/O-bound)."""
@@ -178,9 +195,7 @@ class Orchestrator:
                 if file_path:  
                     self.downloaded_files.append((file_path, source, source))
 
-            logger.info(f"Complete Data written to temporary directory `{connector.temp_dir}` successfully.")
-
-        
+            logger.info(f"Data written to temp directory `{connector.temp_dir}` successfully.")
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_connections) as executor:
             future_to_task = {
@@ -198,5 +213,7 @@ class Orchestrator:
 
         logger.info("Ingestion process completed!")
 
-        shutil.rmtree(self.temp_dir)
-        logger.info(f"Temporary directory {self.temp_dir} deleted.")
+        # Only delete temp_dir if it was created inside Orchestrator
+        if self.temp_dir_created:
+            shutil.rmtree(self.temp_dir)
+            logger.info(f"Temporary directory {self.temp_dir} deleted.")
