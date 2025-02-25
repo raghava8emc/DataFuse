@@ -28,18 +28,17 @@ class MySQLConnector:
         self.max_connections = min(pool_size, os.cpu_count())
         self.connection_pool = queue.Queue(self.max_connections)
         self.valid_tables = set()
+        self.metadata = MetaData()
         
         try:
             self._validate_connection()
             self._initialize_connection_pool()
-            self._validate_tables()
-            self.metadata = MetaData()
         except OperationalError as e:
             logger.error(f"MySQL Connection Error: {e}")
             raise RuntimeError(f"Failed to connect to MySQL: {e}")
         
     def test_connection(self):
-        """Validates PostgreSQL connection and checks if the database exists."""
+        """Validates MySQL connection and checks if the database exists."""
         return self._validate_connection()
 
 
@@ -139,6 +138,11 @@ class MySQLConnector:
         """
         self.connection_pool.put(engine)
 
+    def _prepare_for_ingestion(self):
+        """Ensures tables exist before ingestion begins."""
+        if not self.valid_tables:
+            self._validate_tables()
+
     def fetch_table_data(self, table_name):
         """
         Fetches data from a MySQL table and stores it in the temp directory.
@@ -185,6 +189,7 @@ class MySQLConnector:
         """
         logger.info(f"Fetching data from MySQL database `{self.database}`...")
         downloaded_files = {}
+        self._prepare_for_ingestion()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_connections) as executor:
             future_to_table = {executor.submit(self.fetch_table_data, table): table for table in self.valid_tables}

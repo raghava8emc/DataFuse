@@ -37,9 +37,11 @@ def validate_sources(request: IngestionRequest):
     try:
         # Get Source Connector (No temp_dir creation)
         source_manager = SourceManager()
-        source = source_manager.get_connector(request.source_type, request.config, request.storage_type, create_temp_dir=False)
+        source = source_manager.get_connector(request.source_type, request.config, request.storage_type, create_temp_dir=True, pool_size=1)
         if not source:
             raise ValueError(f"Unsupported source type: {request.source_type}")
+        
+        logger.info("Hello")
 
         # Initialize Orchestrator (No temp_dir, No DB connections)
         orchestrator = Orchestrator(
@@ -48,6 +50,7 @@ def validate_sources(request: IngestionRequest):
             format_type=request.format_type,
             output_config=request.output_config,
             temp_dir=None,  # No temp_dir during validation
+            pool_size=1,
             validation_schemas={request.source_type: request.validation_schema},
             enable_db_connections=False  # Prevent DB connections during validation
         )

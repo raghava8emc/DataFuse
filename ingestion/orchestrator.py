@@ -39,7 +39,7 @@ class Orchestrator:
         self.formatter = self.get_formatter()
         
         # Initialize output handler only if ingestion is enabled
-        self.output_handler = self.get_output_handler() if enable_db_connections else None
+        self.output_handler = self.get_output_handler()
 
         self.max_connections = min(pool_size, os.cpu_count())
 
@@ -52,7 +52,7 @@ class Orchestrator:
             logger.error("Input source validation failed.")
             return False
 
-        if self.enable_db_connections and not self.validate_output_source():
+        if not self.validate_output_source():
             logger.error("Output storage validation failed.")
             return False
 
@@ -90,7 +90,8 @@ class Orchestrator:
         logger.info("Validating output storage...")
 
         try:
-            if not self.output_handler.test_connection():
+            # 🔹 Ensure test_connection() works for ALL storage types
+            if not self.output_handler or not self.output_handler.test_connection():
                 logger.error(f"Output validation failed for `{self.storage_type.name}`.")
                 return False
         except Exception as e:
@@ -99,6 +100,7 @@ class Orchestrator:
 
         logger.info(f"Output storage `{self.storage_type.name}` validated successfully.")
         return True
+
 
     def get_formatter(self):
         if self.format_type == FormatType.JSON:

@@ -10,7 +10,7 @@ from sources.base_connector import BaseConnector
 
 
 class SFTPConnector(BaseConnector):
-    def __init__(self, host, port, username, password, remote_path, temp_dir, file_patterns, private_key=None, protocol="sftp"):
+    def __init__(self, host, port, username, password, remote_path, temp_dir, file_patterns, private_key=None, protocol="sftp",pool_size=8):
         """
         Initializes the SFTP/FTP Connector.
 
@@ -36,10 +36,8 @@ class SFTPConnector(BaseConnector):
         self.private_key_path = private_key
         self.protocol = protocol.lower()
 
-        os.makedirs(self.temp_dir, exist_ok=True)
-
         # Connection pool
-        self.max_connections = min(8, os.cpu_count()) 
+        self.max_connections = min(pool_size, os.cpu_count()) 
         self.connection_pool = queue.Queue(self.max_connections)
         self._initialize_connection_pool()
 
@@ -57,7 +55,7 @@ class SFTPConnector(BaseConnector):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(self.host, port=self.port, username=self.username, password=self.password, pkey=self.private_key, timeout=5)
+            ssh.connect(self.host, port=self.port, username=self.username, password=self.password, pkey=self.private_key_path, timeout=5)
             sftp = ssh.open_sftp()
             sftp.listdir(self.remote_path)  # Check if we can access the directory
             sftp.close()

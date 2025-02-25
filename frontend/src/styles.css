@@ -36,6 +36,22 @@
     margin-top: 20px;
 }
 
+/* Log Box - Better visibility */
+.log-box {
+    width: 90%;
+    max-width: 1200px; /* Allow it to be bigger */
+    height: 250px; /* Increased height */
+    background: #1e1e1e; /* Dark theme like a terminal */
+    color: #d4d4d4; /* Light text */
+    font-family: monospace;
+    padding: 15px;
+    border-radius: 8px;
+    overflow-y: auto; /* Enable scrolling */
+    white-space: pre-wrap; /* Preserve formatting */
+    margin: 20px auto;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
 .action-buttons button {
     margin: 10px;
     padding: 12px 20px;

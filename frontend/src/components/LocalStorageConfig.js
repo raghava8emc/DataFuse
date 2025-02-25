@@ -25,7 +25,7 @@ const LocalStorageConfig = ({ formData, setFormData, setFormatType }) => {
             <h2>💾 Local Storage Configuration</h2>
             <p>Specify where the ingested data should be saved.</p>
 
-            <label>Output Path:</label>
+            <label>🗄️ Output Path:</label>
             <input
                 type="text"
                 name="outputPath"
@@ -34,7 +34,7 @@ const LocalStorageConfig = ({ formData, setFormData, setFormatType }) => {
                 placeholder="/path/to/save"
             />
 
-            <label>Format Type:</label>
+            <label>📄 Format Type:</label>
             <select name="format_type" value={formData.format_type || ""} onChange={handleFormatChange}>
                 <option value="">Select Format</option>
                 <option value="JSON">JSON</option>

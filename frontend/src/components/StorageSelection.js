@@ -15,7 +15,7 @@ const StorageSelection = ({ selectedStorage, setSelectedStorage }) => {
 
     return (
         <div className="storage-container">
-            <h2>Select Storage Destination</h2>
+            <h2>💾 Select Storage Destination</h2>
             <div className="storage-list">
                 {storageOptions.map((storage) => (
                     <button

@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+
 import SourceSelection from "./components/SourceSelection";
 import RestAPIConfig from "./components/RestAPIConfig";
 import SFTPConfig from "./components/SFTPConfig";
@@ -26,6 +30,7 @@ const App = () => {
     const [validationStatus, setValidationStatus] = useState(null);
     const [validationMessage, setValidationMessage] = useState(""); 
     const [isIngestionRunning, setIsIngestionRunning] = useState(false);
+    const [processLogs, setProcessLogs] = useState([]);
 
     // Handle Source Selection
     const handleSourceSelection = (source) => {
@@ -94,52 +99,79 @@ const App = () => {
         };
     };
 
+    const logStatus = (message, type = "info") => {
+      setProcessLogs(prev => [...prev, { message, timestamp: new Date().toLocaleTimeString() }]);
+      toast[type](message);
+    };
+
     // 🔹 Step 1: Validate Before Ingestion
     const handleValidate = async () => {
         setValidationStatus("validating");
-
+        logStatus("🔍 Validation started...", "info");
+    
         const requestData = getRequestPayload();
-
+        const startTime = Date.now();
+    
         console.log("🔹 Sending Validation Request:", requestData);
-
+    
         try {
             const response = await axios.post(`${API_BASE_URL}/validate`, requestData);
+            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+
+            console.log(response)
+    
             if (response.data.validation_passed) {
                 setValidationStatus("success");
-                setValidationMessage("");  
+                setValidationMessage("");
+                logStatus(`✅ Validation successful! (Time: ${elapsedTime}s)`, "success");
             } else {
+                // Extract detailed error message
+                const errorMsg = response.data.error || response.data.message || "Unknown validation error.";
                 setValidationStatus("failed");
-                setValidationMessage(response.data.error || "Unknown validation error.");
+                setValidationMessage(errorMsg);
+                logStatus(`❌ Validation failed: ${errorMsg}`, "error");
             }
         } catch (error) {
+            // Handle server/network failures
+            const errorMsg = error.response?.data?.error || error.response?.data?.message || "Validation failed due to a network or server issue.";
             setValidationStatus("failed");
-            setValidationMessage(error.response?.data?.error || "Validation failed due to a network or server issue.");
+            setValidationMessage(errorMsg);
+            logStatus(`❌ Validation failed: ${errorMsg}`, "error");
         }
     };
+  
 
     // 🔹 Step 2: Start Ingestion After Validation
     const handleStartIngestion = async () => {
-        if (validationStatus !== "success") return;
-
+        if (validationStatus !== "success") {
+            logStatus("⚠️ Cannot start ingestion. Validation failed or not completed.", "warn");
+            return;
+        }
+    
         setIsIngestionRunning(true);
-
+        logStatus("🚀 Ingestion started...", "info");
+    
+        const startTime = Date.now();
         const requestData = getRequestPayload();
-
-        console.log("🔹 Starting Ingestion with Data:", requestData);
-
+    
         try {
+            console.log("🔹 Starting Ingestion with Data:", requestData);
             const response = await axios.post(`${API_BASE_URL}/ingest`, requestData);
-            alert(response.data.message);
+    
+            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            logStatus(`✅ Ingestion successful! (Time: ${elapsedTime}s)`, "success");
         } catch (error) {
-            alert("Ingestion failed! Check logs.");
+            logStatus("❌ Ingestion failed! Check logs.", "error");
             console.error("Ingestion Error:", error);
         } finally {
             setIsIngestionRunning(false);
         }
     };
+  
 
     return (
         <div className="page-container">
+            <ToastContainer position="top-right" autoClose={3000} />
             <h1 className="title">🚀 Data Ingestion Setup</h1>
 
             <div className="grid-container">

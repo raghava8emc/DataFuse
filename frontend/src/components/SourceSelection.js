@@ -20,7 +20,7 @@ const SourceSelection = ({ selectedSource, setSelectedSource }) => {
 
     return (
         <div className="selection-container">
-            <h2>Select Data Source</h2>
+            <h2> 📡 Select Data Source</h2>
             <div className="source-list">
                 {sources.map((source) => (
                     <button

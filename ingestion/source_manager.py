@@ -24,10 +24,10 @@ class SourceManager:
         os.makedirs(self.temp_dir, exist_ok=True)  
         logger.info(f"Temporary directory for ingestion created: {self.temp_dir}")
 
-    def get_connector(self, source_type: str, config: dict, storage_type: str, create_temp_dir=False):
+    def get_connector(self, source_type: str, config: dict, storage_type: str, create_temp_dir=False, pool_size=8):
         """Returns the appropriate source connector with temp_dir for storage."""
         
-        # ✅ Create temp directory only for ingestion (not validation)
+        # Create temp directory only for ingestion (not validation)
         if create_temp_dir and not self.temp_dir:
             self.initialize_temp_dir(source_type, storage_type)
 
@@ -46,7 +46,8 @@ class SourceManager:
                 config["username"],
                 config["password"],
                 config["remote_path"],
-                self.temp_dir if create_temp_dir else None,  # Assign temp_dir only for ingestion
+                self.temp_dir if create_temp_dir else None,
+                pool_size=pool_size,
                 file_patterns=config.get("file_patterns", []),
                 protocol=source_type
             )
@@ -59,7 +60,8 @@ class SourceManager:
                 password=config["password"],
                 database=config["database"],
                 table_names=config["table_names"],
-                temp_dir=self.temp_dir if create_temp_dir else None  # Assign temp_dir only for ingestion
+                temp_dir=self.temp_dir if create_temp_dir else None,
+                pool_size=pool_size  
             )
         
         elif source_type == "postgresql":
@@ -70,7 +72,8 @@ class SourceManager:
                 password=config["password"],
                 database=config["database"],
                 table_names=config["table_names"],
-                temp_dir=self.temp_dir if create_temp_dir else None  # Assign temp_dir only for ingestion
+                temp_dir=self.temp_dir if create_temp_dir else None,
+                pool_size=pool_size  
             )
         
         elif source_type == "mongodb":
@@ -81,7 +84,8 @@ class SourceManager:
                 password=config["password"],
                 database=config["database"],
                 collection_names=config["collection_names"],
-                temp_dir=self.temp_dir if create_temp_dir else None  # Assign temp_dir only for ingestion
+                temp_dir=self.temp_dir if create_temp_dir else None,
+                pool_size=pool_size    # Assign temp_dir only for ingestion
             )
         
         return None  

@@ -40,27 +40,27 @@ const MySQLConfig = ({ formData, setFormData }) => {
         <div className="db-config-container">
             <h2>⚡ MySQL Configuration</h2>
             <div className="db-input-group">
-                <label>Host:</label>
+                <label>🔗 Host:</label>
                 <input type="text" name="host" value={localConfig.host} onChange={handleChange} placeholder="e.g., localhost or 192.168.1.1" />
             </div>
             <div className="db-input-group">
-                <label>Port:</label>
+                <label>🔢 Port:</label>
                 <input type="number" name="port" value={localConfig.port} onChange={handleChange} placeholder="3306 (default)" />
             </div>
             <div className="db-input-group">
-                <label>Username:</label>
+                <label>👤 Username:</label>
                 <input type="text" name="username" value={localConfig.username} onChange={handleChange} placeholder="MySQL Username" />
             </div>
             <div className="db-input-group">
-                <label>Password:</label>
+                <label>🔑 Password:</label>
                 <input type="password" name="password" value={localConfig.password} onChange={handleChange} placeholder="••••••••" />
             </div>
             <div className="db-input-group">
-                <label>Database Name:</label>
+                <label>🏛️ Database Name:</label>
                 <input type="text" name="database" value={localConfig.database} onChange={handleChange} placeholder="Database Name" />
             </div>
             <div className="db-input-group">
-                <label>Table Names (Comma-Separated):</label>
+                <label>📑 Table Names (Comma-Separated):</label>
                 <input type="text" name="table_names" value={localConfig.table_names} onChange={handleChange} placeholder="e.g., users, orders" />
             </div>
         </div>
