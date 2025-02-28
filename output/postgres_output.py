@@ -1,5 +1,5 @@
 from utils.logging_utils import logger
-from sqlalchemy import create_engine, Column, Integer, String, JSON, TIMESTAMP, Table, MetaData, text
+from sqlalchemy import create_engine, Column, Integer, String, JSON, TIMESTAMP, Table, MetaData, BigInteger, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from typing import Dict, List, Any
@@ -72,7 +72,7 @@ class PostgreSQLOutput:
             column_name = key  # Keep original case for column names
             
             if isinstance(value, int):
-                columns.append(Column(column_name, Integer))
+                columns.append(Column(column_name, BigInteger))
             elif isinstance(value, float):
                 columns.append(Column(column_name, String(50)))  
             elif isinstance(value, str):

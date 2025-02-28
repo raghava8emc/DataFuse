@@ -1,8 +1,7 @@
 import json
 import csv
-import xml.etree.ElementTree as ET
+import xmltodict
 import io
-from bs4 import BeautifulSoup
 from typing import Union, List, Dict
 from utils.logging_utils import logger
 
@@ -30,7 +29,7 @@ class ContentParser:
     def parse_csv(response: Union[str, bytes]) -> List[Dict]:
         """Parses CSV response into a list of dictionaries."""
         if isinstance(response, bytes):
-            response = response.decode("utf-8")  # Ensure it's a string
+            response = response.decode("utf-8")  
         try:
             reader = csv.DictReader(io.StringIO(response))
             return [row for row in reader]
@@ -39,62 +38,23 @@ class ContentParser:
 
     @staticmethod
     def parse_xml(response: Union[str, bytes]) -> Dict:
-        """Parses XML response into a dictionary."""
+        """Parses XML response into a dictionary using `xmltodict`."""
         if isinstance(response, bytes):
-            response = response.decode("utf-8")  # Ensure it's a string
+            response = response.decode("utf-8")  
         try:
-            root = ET.fromstring(response)
-            return ContentParser._xml_to_dict(root)
-        except ET.ParseError:
-            raise ValueError("Invalid XML format")
-    
-    @staticmethod
-    def _xml_to_dict(element) -> Dict:
-        """Recursively converts an XML element into a dictionary."""
-        return {element.tag: {child.tag: ContentParser._xml_to_dict(child) if len(child) else child.text for child in element}}
+            return xmltodict.parse(response, dict_constructor=dict)  
+        except Exception as e:
+            raise ValueError(f"Invalid XML format: {str(e)}")
     
     @staticmethod
     def parse_html(response: Union[str, bytes]) -> Dict:
-        """Parses HTML response, extracting headings, paragraphs, tables, lists, and links."""
+        """Parses html response into a dictionary using `xmltodict`."""
         if isinstance(response, bytes):
-            response = response.decode("utf-8")
-        
-        soup = BeautifulSoup(response, "html.parser")
-
-        # Extract Headings (H1, H2, H3, ...)
-        headings = {f"h{level}": [h.get_text(strip=True) for h in soup.find_all(f"h{level}")] for level in range(1, 7)}
-
-        # Extract Paragraphs
-        paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
-
-        # Extract Tables
-        tables = []
-        for table in soup.find_all("table"):
-            table_data = []
-            headers = [th.get_text(strip=True) for th in table.find_all("th")]
-            for row in table.find_all("tr"):
-                cells = [td.get_text(strip=True) for td in row.find_all("td")]
-                if cells:
-                    table_data.append(dict(zip(headers, cells)) if headers else cells)
-            if table_data:
-                tables.append(table_data)
-
-        # Extract Lists (UL, OL)
-        lists = {
-            "unordered": [[li.get_text(strip=True) for li in ul.find_all("li")] for ul in soup.find_all("ul")],
-            "ordered": [[li.get_text(strip=True) for li in ol.find_all("li")] for ol in soup.find_all("ol")]
-        }
-
-        # Extract Links
-        links = [{"text": a.get_text(strip=True), "url": a["href"]} for a in soup.find_all("a", href=True)]
-
-        return {
-            "headings": headings,
-            "paragraphs": paragraphs,
-            "tables": tables,
-            "lists": lists,
-            "links": links
-        }
+            response = response.decode("utf-8")  
+        try:
+            return xmltodict.parse(response, dict_constructor=dict)  
+        except Exception as e:
+            raise ValueError(f"Invalid HTML format: {str(e)}")
 
     @staticmethod
     def parse_response(response: Union[str, bytes], content_type: str) -> Union[Dict, List, bytes]:

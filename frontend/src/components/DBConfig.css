@@ -2,9 +2,12 @@
     background-color: #f8f9fa;
     padding: 20px;
     border-radius: 8px;
-    margin: 20px 0;
+    margin: 20px auto; /* Center align */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: calc(100% - 24px); /* Reduce width by 1/2 inch */
+    max-width: 600px; /* Adjust as needed */
 }
+
 
 .db-input-group {
     margin-bottom: 10px;

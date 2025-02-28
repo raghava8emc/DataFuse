@@ -41,7 +41,6 @@ def validate_sources(request: IngestionRequest):
         if not source:
             raise ValueError(f"Unsupported source type: {request.source_type}")
         
-        logger.info("Hello")
 
         # Initialize Orchestrator (No temp_dir, No DB connections)
         orchestrator = Orchestrator(
